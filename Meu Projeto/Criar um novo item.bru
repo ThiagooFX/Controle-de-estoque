@@ -1,0 +1,18 @@
+meta {
+  name: Criar um novo item
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:2000/itens
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+      "nome": "MacBook",
+      "quantidade": 10
+    }
+}
