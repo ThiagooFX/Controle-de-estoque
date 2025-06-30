@@ -26,7 +26,7 @@ func Addlogs(r *http.Request, action string) error {
 	parser := uaparser.NewFromSaved()
 	client := parser.Parse(uaString)
 
-	ocorredAt := time.Now()
+	ocorredAt := time.Now().Format("2006-01-02")
 	user := "Thiago"
 	userEmail := "dev.tfx11@gmail.com"
 	dispositivo := client.Device.Family
@@ -35,7 +35,7 @@ func Addlogs(r *http.Request, action string) error {
 	_, err := repository.DB.Exec(`
 		INSERT INTO logs (action, ocorred_at, user, user_email, device, ip)
 		VALUES (?, ?, ?, ?, ?, ?)`,
-		action, ocorredAt.Format(time.RFC3339), user, userEmail, dispositivo, ip,
+		action, ocorredAt, user, userEmail, dispositivo, ip,
 	)
 	return err
 }
