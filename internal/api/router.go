@@ -3,18 +3,18 @@ package api
 import (
 	"api/internal/services"
 	"log"
-	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/labstack/echo"
 )
 
 func InitRouters() {
-	r := mux.NewRouter()
-	r.HandleFunc("/itens", services.GetItens).Methods("GET")
-	r.HandleFunc("/itens", services.AddItem).Methods("POST")
-	r.HandleFunc("/itens/{id}", services.UpdateItem).Methods("PUT")
-	r.HandleFunc("/itens/{id}", services.DeleteItem).Methods("DELETE")
+
+	e := echo.New()
+	e.GET("/itens", services.GetItens)
+	e.POST("/itens", services.AddItem)
+	e.PUT("/itens/:id", services.UpdateItem)
+	e.DELETE("/itens/:id", services.DeleteItem)
 
 	log.Println("Servidor rodando na porta 2000")
-	http.ListenAndServe(":2000", r)
+	e.Start(":2000")
 }

@@ -3,117 +3,70 @@ package services
 import (
 	"api/internal/models"
 	"api/internal/repository"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
+	"github.com/labstack/echo"
 )
-
-func enableCORS(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-}
-
-func GetItens(w http.ResponseWriter, r *http.Request) {
-	enableCORS(w)
-	rows, err := repository.DB.Query("SELECT id, name, quantity FROM itens")
+func GetItens(c echo.Context) error {
+	itens, err := repository.GetAllItems(repository.DB)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	defer rows.Close()
-
-	var itens []models.Item
-	for rows.Next() {
-		var item models.Item
-		if err := rows.Scan(&item.ID, &item.Name, &item.Quantity); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		itens = append(itens, item)
-	}
-
-	json.NewEncoder(w).Encode(itens)
+	return c.JSON(http.StatusOK, itens)
 }
 
-func AddItem(w http.ResponseWriter, r *http.Request) {
-	enableCORS(w)
-
+func AddItem(c echo.Context) error {
 	var item models.Item
-	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if err := c.Bind(&item); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	result, err := repository.DB.Exec("INSERT INTO itens (name, quantity) VALUES (?, ?)", item.Name, item.Quantity)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if err := repository.AddItem(repository.DB, &item); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		http.Error(w, "Erro ao obter ID do item", http.StatusInternalServerError)
-		return
-	}
-	item.ID = int(id)
-
-	// Responde ao cliente
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(item)
-
-	// Salva log da ação
 	go func() {
-		err := Addlogs(r, fmt.Sprintf("Adicionou item ID %d", item.ID))
-		if err != nil {
+		if err := Addlogs(c.Request(), fmt.Sprintf("Adicionou item ID %d", item.ID)); err != nil {
 			log.Printf("Erro ao registrar log: %v", err)
 		}
 	}()
+
+	return c.JSON(http.StatusCreated, item)
 }
 
-func UpdateItem(w http.ResponseWriter, r *http.Request) {
-	enableCORS(w)
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
+func UpdateItem(c echo.Context) error {
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
 	if err != nil {
-		http.Error(w, "ID inválido", http.StatusBadRequest)
-		return
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ID inválido"})
 	}
 
 	var item models.Item
-	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if err := c.Bind(&item); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
-
-	_, err = repository.DB.Exec("UPDATE itens SET name=?, quantity=? WHERE id=?", item.Name, item.Quantity, id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	item.ID = id
-	json.NewEncoder(w).Encode(item)
+
+	if err := repository.UpdateItem(repository.DB, &item); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, item)
 }
 
-func DeleteItem(w http.ResponseWriter, r *http.Request) {
-	enableCORS(w)
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
+func DeleteItem(c echo.Context) error {
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
 	if err != nil {
-		http.Error(w, "ID inválido", http.StatusBadRequest)
-		return
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ID inválido"})
 	}
 
-	_, err = repository.DB.Exec("DELETE FROM itens WHERE id=?", id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if err := repository.DeleteItem(repository.DB, id); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }
